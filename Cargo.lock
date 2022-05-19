@@ -837,7 +837,6 @@ dependencies = [
  "actix-web-httpauth",
  "base64",
  "futures-util",
- "http",
  "serde",
 ]
 

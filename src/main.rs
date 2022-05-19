@@ -1,6 +1,8 @@
+mod auth_middleware;
 mod types;
 
 use actix_web::{delete, get, post, put, web, App, HttpResponse, HttpServer, Responder};
+use auth_middleware::Authorization;
 use std::io::Result;
 use types::SimpleMessage;
 
@@ -52,6 +54,7 @@ async fn main() -> Result<()> {
             .service(get_messages_with_id)
             .service(post_messages)
             .service(put_messages)
+            .wrap(Authorization)
     })
     .bind(("127.0.0.1", 8080))?
     .run()

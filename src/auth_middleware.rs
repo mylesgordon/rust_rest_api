@@ -1,6 +1,6 @@
 use actix_web::http::header::Header;
 use actix_web_httpauth::headers::authorization::{Authorization as ActixAuthorization, Basic};
-use http::header;
+use std::borrow::Cow;
 use std::future::{ready, Ready};
 
 use actix_web::{
@@ -49,31 +49,29 @@ where
     forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        let maybe_auth: Option<String> = match req.headers().get(header::AUTHORIZATION) {
-            None => None,
-            Some(auth) => auth.to_str().ok().map(|s| s.to_string()),
-        };
-
-        if maybe_auth.is_none() || maybe_auth.unwrap() != "Basic dXNlcm5hbWU6cGFzc3dvcmQ=" {
-            println!("Unauthorised user attempted request");
-            return Box::pin(async { Err(ErrorUnauthorized("Unauthorised")) });
+        match check_auth(&req) {
+            Err(_) => Box::pin(async { Err(ErrorUnauthorized("Unauthorised")) }),
+            Ok(_) => {
+                let fut = self.service.call(req);
+                Box::pin(async move {
+                    let res = fut.await?;
+                    Ok(res)
+                })
+            }
         }
-
-        print_username_and_password(&req);
-
-        let fut = self.service.call(req);
-        Box::pin(async move {
-            let res = fut.await?;
-            Ok(res)
-        })
     }
 }
 
-fn print_username_and_password(req: &ServiceRequest) {
-    let auth = ActixAuthorization::<Basic>::parse(req).unwrap();
-    println!(
-        "Found {} {:?}",
-        auth.as_ref().user_id(),
-        auth.as_ref().password()
-    );
+fn check_auth(req: &ServiceRequest) -> Result<(), String> {
+    match ActixAuthorization::<Basic>::parse(req) {
+        Err(e) => Err(e.to_string()),
+        Ok(auth) => {
+            if auth.as_ref().user_id() != "username"
+                || auth.as_ref().password().unwrap_or(&Cow::from("")) != "password"
+            {
+                return Err("Unauthorised user".to_string());
+            }
+            Ok(())
+        }
+    }
 }
